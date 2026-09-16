@@ -14,6 +14,17 @@ python dashboard_api.py                               # dashboard en http://loca
 ```
 `start.bat` hace todo lo anterior en Windows. Playwright es opcional (ver limitaciones).
 
+### Modo solo investigación (sin Telegram ni API de Anthropic)
+Si este repo se usa únicamente para consultar SECOP desde Claude Code, **no hace falta ninguna
+credencial**: los scripts de `research/` solo usan la API pública de datos.gov.co.
+```bash
+python -m venv .venv && .venv/Scripts/activate
+pip install -r requirements-research.txt          # solo sodapy + python-dotenv
+python research/buscar_procesos.py salida.json    # funciona sin .env (verificado en clon limpio 2026-09-16)
+```
+Opcional: crear `.env` con solo `SOCRATA_APP_TOKEN=...` para evitar el throttling. No tocar
+`main.py`, `dashboard_api.py` ni `doc_generator.py` en este modo — esos sí exigen las demás credenciales.
+
 ## De dónde salen los datos: API Socrata de datos.gov.co
 Todo viene de la **API SODA (Socrata Open Data API)** de `www.datos.gov.co`, vía `sodapy`.
 No hay API oficial de SECOP: los datasets abiertos son la única vía programática.
