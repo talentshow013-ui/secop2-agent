@@ -1,0 +1,22 @@
+# Secretos
+.env
+
+# Entorno / cache
+.venv/
+__pycache__/
+*.pyc
+
+# Datos locales (base de datos SQLite, logs, reportes generados)
+secop.db
+secop.db-shm
+secop.db-wal
+*.db
+logs/
+output/
+!output/.gitkeep
+
+# Datos personales de consultas ad-hoc
+yeison_*.txt
+
+# Scratch
+*.tmp

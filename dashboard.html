@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SECOP2 — Vector Pro Services</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#f0fdf4', 100:'#dcfce7', 600:'#16a34a', 700:'#15803d', 800:'#166534', 900:'#14532d' },
+            navy: { 800:'#1e3a5f', 900:'#0f2040' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; }
+    .score-alta  { background:#bbf7d0; color:#14532d; }
+    .score-media { background:#fef9c3; color:#713f12; }
+    .score-baja  { background:#fee2e2; color:#7f1d1d; }
+    .score-none  { background:#f3f4f6; color:#6b7280; }
+    .tag-suministro   { background:#dbeafe; color:#1e40af; }
+    .tag-eventos      { background:#ede9fe; color:#4c1d95; }
+    .tag-social       { background:#fce7f3; color:#831843; }
+    .tag-ambiental    { background:#d1fae5; color:#065f46; }
+    .tag-mantenimiento{ background:#ffedd5; color:#7c2d12; }
+    .tag-otro         { background:#f3f4f6; color:#374151; }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:#f1f5f9; }
+    ::-webkit-scrollbar-thumb { background:#94a3b8; border-radius:3px; }
+    .modal-overlay { backdrop-filter:blur(4px); }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<!-- SIDEBAR -->
+<div class="fixed inset-y-0 left-0 w-64 bg-navy-900 text-white flex flex-col shadow-xl z-30">
+  <div class="px-6 py-5 border-b border-white/10">
+    <div class="text-xs font-semibold text-green-400 uppercase tracking-widest mb-1">Vector Pro Services</div>
+    <div class="text-xl font-bold leading-tight">Monitor SECOP 2</div>
+    <div class="text-xs text-gray-400 mt-1">Huila · Mínima Cuantía</div>
+  </div>
+
+  <nav class="flex-1 px-3 py-4 space-y-1">
+    <button onclick="showSection('inicio')" class="nav-btn w-full text-left px-4 py-2.5 rounded-lg flex items-center gap-3 text-sm font-medium hover:bg-white/10 transition-colors">
+      <span>📊</span> Inicio
+    </button>
+    <button onclick="showSection('procesos')" class="nav-btn w-full text-left px-4 py-2.5 rounded-lg flex items-center gap-3 text-sm font-medium hover:bg-white/10 transition-colors">
+      <span>📋</span> Procesos
+    </button>
+    <button onclick="showSection('historial')" class="nav-btn w-full text-left px-4 py-2.5 rounded-lg flex items-center gap-3 text-sm font-medium hover:bg-white/10 transition-colors">
+      <span>🕐</span> Historial Búsquedas
+    </button>
+  </nav>
+
+  <div class="px-4 py-4 border-t border-white/10">
+    <button onclick="triggerBusqueda()" id="btn-buscar"
+      class="w-full bg-green-600 hover:bg-green-500 text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2">
+      <span id="buscar-icon">🔍</span>
+      <span id="buscar-label">Buscar Ahora</span>
+    </button>
+    <div id="buscar-status" class="text-xs text-gray-400 mt-2 text-center hidden"></div>
+  </div>
+
+  <div class="px-4 py-3 border-t border-white/10">
+    <div class="text-xs text-gray-500">API: <span id="api-status" class="font-medium text-red-400">Desconectado</span></div>
+    <div class="text-xs text-gray-500 mt-0.5">Última actualización: <span id="last-update">—</span></div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="ml-64 min-h-screen">
+
+  <!-- HEADER -->
+  <header class="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+    <div>
+      <h1 id="page-title" class="text-lg font-bold text-gray-900">Inicio</h1>
+      <p id="page-sub" class="text-xs text-gray-500">Resumen de contratos monitoreados en Huila</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-sm text-gray-500" id="header-date"></span>
+      <button onclick="refreshAll()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors">
+        ↻ Actualizar
+      </button>
+    </div>
+  </header>
+
+  <!-- SECCIÓN: INICIO -->
+  <section id="section-inicio" class="p-8">
+
+    <!-- STAT CARDS -->
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="text-3xl font-bold text-gray-900" id="stat-total">—</div>
+        <div class="text-sm text-gray-500 mt-1">Procesos totales</div>
+        <div class="text-xs text-blue-600 mt-2 font-medium">Base de datos</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="text-3xl font-bold text-green-600" id="stat-alertados">—</div>
+        <div class="text-sm text-gray-500 mt-1">Alertados</div>
+        <div class="text-xs text-green-600 mt-2 font-medium">Score ≥ 60</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="text-3xl font-bold text-purple-600" id="stat-docs">—</div>
+        <div class="text-sm text-gray-500 mt-1">Documentos generados</div>
+        <div class="text-xs text-purple-600 mt-2 font-medium">Word descargados</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div class="text-3xl font-bold text-amber-500" id="stat-score">—</div>
+        <div class="text-sm text-gray-500 mt-1">Score promedio</div>
+        <div class="text-xs text-amber-500 mt-2 font-medium">Relevancia IA</div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+
+      <!-- DISTRIBUCIÓN POR CATEGORÍA -->
+      <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 class="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Por Categoría</h2>
+        <div id="chart-categorias" class="space-y-3"></div>
+      </div>
+
+      <!-- DISTRIBUCIÓN POR SCORE -->
+      <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 class="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Por Relevancia</h2>
+        <div id="chart-scores" class="space-y-3"></div>
+        <div class="mt-4 pt-4 border-t border-gray-100">
+          <div class="text-xs text-gray-500 font-medium mb-2">Último run</div>
+          <div id="ultimo-run" class="text-xs text-gray-700 space-y-1"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP PROCESOS RECIENTES -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Top Procesos — Mayor Relevancia</h2>
+        <button onclick="showSection('procesos')" class="text-xs text-blue-600 hover:underline">Ver todos →</button>
+      </div>
+      <div id="top-procesos" class="divide-y divide-gray-50"></div>
+    </div>
+  </section>
+
+  <!-- SECCIÓN: PROCESOS -->
+  <section id="section-procesos" class="p-8 hidden">
+
+    <!-- FILTROS -->
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="text-xs text-gray-500 font-medium block mb-1">Categoría</label>
+        <select id="filter-cat" onchange="loadProcesos()" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+          <option value="">Todas</option>
+          <option value="suministro">Suministro</option>
+          <option value="eventos">Eventos</option>
+          <option value="social">Social</option>
+          <option value="ambiental">Ambiental</option>
+          <option value="mantenimiento">Mantenimiento</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 font-medium block mb-1">Score mínimo</label>
+        <select id="filter-score" onchange="loadProcesos()" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+          <option value="0">Cualquiera</option>
+          <option value="60">≥ 60 (Relevante)</option>
+          <option value="80">≥ 80 (Alta relevancia)</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 font-medium block mb-1">Estado</label>
+        <select id="filter-alerted" onchange="loadProcesos()" class="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+          <option value="">Todos</option>
+          <option value="1">Alertados</option>
+          <option value="0">Sin alertar</option>
+        </select>
+      </div>
+      <div class="flex-1 min-w-[180px]">
+        <label class="text-xs text-gray-500 font-medium block mb-1">Buscar</label>
+        <input id="filter-busqueda" type="text" placeholder="Nombre, entidad, ciudad…"
+          oninput="debounceLoad()" class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+      </div>
+      <button onclick="loadProcesos()" class="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors font-medium">
+        Filtrar
+      </button>
+    </div>
+
+    <!-- TABLA -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-6 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+        <div class="text-xs text-gray-500">
+          <span id="tabla-total">0</span> procesos encontrados
+        </div>
+        <div class="flex gap-2">
+          <button onclick="prevPage()" id="btn-prev" class="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40">← Anterior</button>
+          <span id="page-info" class="text-xs flex items-center text-gray-500 px-2">Pág. 1</span>
+          <button onclick="nextPage()" id="btn-next" class="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40">Siguiente →</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">Proceso / Entidad</th>
+              <th class="px-4 py-3 text-left font-semibold w-28">Categoría</th>
+              <th class="px-4 py-3 text-left font-semibold w-20">Score</th>
+              <th class="px-4 py-3 text-left font-semibold w-32">Valor</th>
+              <th class="px-4 py-3 text-left font-semibold w-24">Ciudad</th>
+              <th class="px-4 py-3 text-left font-semibold w-24">Fecha</th>
+              <th class="px-4 py-3 text-center font-semibold w-28">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-procesos" class="divide-y divide-gray-50"></tbody>
+        </table>
+        <div id="tabla-empty" class="py-16 text-center text-gray-400 hidden">
+          <div class="text-4xl mb-3">📭</div>
+          <div class="text-sm">No se encontraron procesos con los filtros actuales</div>
+        </div>
+        <div id="tabla-loading" class="py-16 text-center text-gray-400">
+          <div class="text-sm">Cargando procesos…</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECCIÓN: HISTORIAL -->
+  <section id="section-historial" class="p-8 hidden">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Historial de Búsquedas Automáticas</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">Fecha/Hora</th>
+              <th class="px-4 py-3 text-right font-semibold">Fetched</th>
+              <th class="px-4 py-3 text-right font-semibold">Nuevos</th>
+              <th class="px-4 py-3 text-right font-semibold">Alertados</th>
+              <th class="px-4 py-3 text-right font-semibold">Duración</th>
+              <th class="px-4 py-3 text-left font-semibold">Error</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-runs" class="divide-y divide-gray-50"></tbody>
+        </table>
+        <div id="runs-empty" class="py-16 text-center text-gray-400 hidden">
+          <div class="text-sm">Sin historial de búsquedas</div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL DETALLE PROCESO -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center modal-overlay bg-black/50">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col fade-in">
+    <div class="px-6 py-4 border-b border-gray-100 flex items-start justify-between">
+      <div class="flex-1 pr-4">
+        <div class="text-xs text-gray-500 mb-1" id="modal-id">—</div>
+        <div class="font-bold text-gray-900 leading-tight" id="modal-nombre">—</div>
+      </div>
+      <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl leading-none mt-0.5">×</button>
+    </div>
+    <div class="overflow-y-auto px-6 py-5 space-y-4 flex-1">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">Entidad</div>
+          <div class="text-sm font-medium" id="modal-entidad">—</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">Modalidad</div>
+          <div class="text-sm font-medium" id="modal-modalidad">—</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">Valor</div>
+          <div class="text-sm font-medium text-green-700" id="modal-valor">—</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">Ciudad / Dpto.</div>
+          <div class="text-sm font-medium" id="modal-ciudad">—</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">Estado</div>
+          <div class="text-sm font-medium" id="modal-estado">—</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">Publicación</div>
+          <div class="text-sm font-medium" id="modal-fecha">—</div>
+        </div>
+      </div>
+      <div class="bg-gray-50 rounded-lg p-3">
+        <div class="text-xs text-gray-500 mb-2">Categoría / Score IA</div>
+        <div class="flex items-center gap-3">
+          <span id="modal-cat-tag" class="text-xs font-semibold px-2.5 py-1 rounded-full">—</span>
+          <span id="modal-score-badge" class="text-xs font-bold px-2.5 py-1 rounded-full">Score —</span>
+        </div>
+      </div>
+      <div class="bg-amber-50 border border-amber-100 rounded-lg p-3">
+        <div class="text-xs text-amber-700 font-semibold mb-1">Justificación IA</div>
+        <div class="text-sm text-gray-700" id="modal-justificacion">—</div>
+      </div>
+    </div>
+    <div class="px-6 py-4 border-t border-gray-100 flex gap-3 flex-wrap">
+      <a id="modal-link" href="#" target="_blank"
+        class="flex-1 text-center text-sm font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 py-2.5 px-4 rounded-lg transition-colors">
+        🔗 Ver en SECOP 2
+      </a>
+      <button id="modal-btn-doc" onclick="generarDoc()"
+        class="flex-1 text-sm font-semibold bg-green-600 hover:bg-green-700 text-white py-2.5 px-4 rounded-lg transition-colors">
+        📄 Generar Documento Word
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = (location.protocol.startsWith('http') ? location.origin : 'http://localhost:8000') + '/api';
+let currentPage = 0;
+const PAGE_SIZE = 50;
+let totalProcesos = 0;
+let currentModalId = null;
+let debounceTimer = null;
+
+// ── Utilidades ──────────────────────────────────────────────────────────────
+
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'numeric' }); }
+  catch { return iso.substring(0, 10); }
+}
+
+function fmtFechaHora(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }); }
+  catch { return iso; }
+}
+
+function fmtValor(v) {
+  if (!v || v === '0' || v === '') return '—';
+  const n = parseFloat(v.replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return v;
+  return '$' + n.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+}
+
+function scoreClass(s) {
+  if (s >= 80) return 'score-alta';
+  if (s >= 60) return 'score-media';
+  if (s > 0)  return 'score-baja';
+  return 'score-none';
+}
+
+function catClass(c) { return `tag-${c || 'otro'}`; }
+function catLabel(c) {
+  return { suministro:'Suministro', eventos:'Eventos', social:'Social',
+           ambiental:'Ambiental', mantenimiento:'Mant.', otro:'Otro' }[c] || c;
+}
+
+// ── Navegación ───────────────────────────────────────────────────────────────
+
+function showSection(name) {
+  document.querySelectorAll('[id^="section-"]').forEach(s => s.classList.add('hidden'));
+  document.getElementById(`section-${name}`).classList.remove('hidden');
+
+  const titles = { inicio:'Inicio', procesos:'Procesos', historial:'Historial Búsquedas' };
+  const subs   = {
+    inicio:'Resumen de contratos monitoreados en Huila',
+    procesos:'Listado completo de procesos con filtros',
+    historial:'Ejecuciones automáticas del agente (08:00 · 14:00 · 20:00)'
+  };
+  document.getElementById('page-title').textContent = titles[name];
+  document.getElementById('page-sub').textContent = subs[name];
+
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('bg-white/20'));
+  event?.currentTarget?.classList?.add('bg-white/20');
+
+  if (name === 'procesos') loadProcesos();
+  if (name === 'historial') loadRuns();
+}
+
+// ── Stats / Inicio ───────────────────────────────────────────────────────────
+
+async function loadStats() {
+  try {
+    const r = await fetch(`${API}/stats`, {credentials:'include'});
+    if (!r.ok) throw new Error();
+    const d = await r.json();
+
+    document.getElementById('stat-total').textContent = d.total.toLocaleString();
+    document.getElementById('stat-alertados').textContent = d.alertados.toLocaleString();
+    document.getElementById('stat-docs').textContent = d.docs_generados.toLocaleString();
+    document.getElementById('stat-score').textContent = d.score_promedio;
+    document.getElementById('api-status').textContent = 'Conectado';
+    document.getElementById('api-status').className = 'font-medium text-green-400';
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-CO');
+
+    renderCategorias(d.por_categoria, d.total);
+    renderScores(d.por_score);
+    renderUltimoRun(d.ultimo_run);
+    loadTopProcesos();
+  } catch {
+    document.getElementById('api-status').textContent = 'Sin conexión';
+    document.getElementById('api-status').className = 'font-medium text-red-400';
+  }
+}
+
+function renderCategorias(cats, total) {
+  const el = document.getElementById('chart-categorias');
+  if (!cats?.length) { el.innerHTML = '<p class="text-xs text-gray-400">Sin datos</p>'; return; }
+  el.innerHTML = cats.map(c => {
+    const pct = total > 0 ? Math.round((c.total / total) * 100) : 0;
+    return `<div>
+      <div class="flex items-center justify-between text-xs mb-1">
+        <span class="${catClass(c.categoria)} font-semibold px-2 py-0.5 rounded-full">${catLabel(c.categoria)}</span>
+        <span class="text-gray-500">${c.total} procesos · avg ${Math.round(c.score_avg||0)}</span>
+      </div>
+      <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full bg-green-500 rounded-full" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderScores(s) {
+  if (!s) return;
+  const items = [
+    { label:'Alta relevancia (≥80)', val: s.alta||0, cls:'bg-green-500' },
+    { label:'Media relevancia (60-79)', val: s.media||0, cls:'bg-yellow-400' },
+    { label:'Baja relevancia (<60)', val: s.baja||0, cls:'bg-red-400' },
+    { label:'Sin score', val: s.sin_score||0, cls:'bg-gray-300' },
+  ];
+  const total = (s.alta||0)+(s.media||0)+(s.baja||0)+(s.sin_score||0);
+  document.getElementById('chart-scores').innerHTML = items.map(i => {
+    const pct = total > 0 ? Math.round((i.val / total) * 100) : 0;
+    return `<div>
+      <div class="flex items-center justify-between text-xs mb-1">
+        <span class="text-gray-600">${i.label}</span>
+        <span class="font-semibold text-gray-700">${i.val}</span>
+      </div>
+      <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full ${i.cls} rounded-full" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderUltimoRun(run) {
+  const el = document.getElementById('ultimo-run');
+  if (!run) { el.innerHTML = '<span class="text-gray-400">Sin ejecuciones aún</span>'; return; }
+  el.innerHTML = `
+    <div>🕐 ${fmtFechaHora(run.timestamp)}</div>
+    <div>📥 ${run.procesos_fetched} fetched · ${run.procesos_nuevos} nuevos · ${run.procesos_alertados} alertados</div>
+    <div>⏱ ${run.duracion_segundos?.toFixed(1)}s ${run.error ? '<span class="text-red-500">⚠ '+run.error+'</span>' : '✓'}</div>
+  `;
+}
+
+async function loadTopProcesos() {
+  try {
+    const r = await fetch(`${API}/procesos?min_score=60&limit=8`);
+    const d = await r.json();
+    const el = document.getElementById('top-procesos');
+    if (!d.items?.length) {
+      el.innerHTML = '<div class="py-8 text-center text-sm text-gray-400">Sin procesos relevantes aún</div>';
+      return;
+    }
+    el.innerHTML = d.items.map(p => `
+      <div class="px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors flex items-center gap-4"
+           onclick="openModal('${p.id_proceso}')">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-gray-900 truncate">${p.nombre_proceso || 'Sin nombre'}</div>
+          <div class="text-xs text-gray-500 mt-0.5">${p.entidad || '—'} · ${p.ciudad || '—'}</div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="${catClass(p.categoria)} text-xs font-semibold px-2 py-0.5 rounded-full">${catLabel(p.categoria)}</span>
+          <span class="${scoreClass(p.relevance_score)} text-xs font-bold px-2.5 py-1 rounded-full w-12 text-center">${p.relevance_score}</span>
+          <span class="text-xs text-gray-400 w-20 text-right">${fmtValor(p.valor_proceso)}</span>
+        </div>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+// ── Procesos ─────────────────────────────────────────────────────────────────
+
+async function loadProcesos() {
+  const loading = document.getElementById('tabla-loading');
+  const tbody   = document.getElementById('tabla-procesos');
+  const empty   = document.getElementById('tabla-empty');
+
+  loading.classList.remove('hidden');
+  tbody.innerHTML = '';
+  empty.classList.add('hidden');
+
+  const cat     = document.getElementById('filter-cat').value;
+  const score   = document.getElementById('filter-score').value;
+  const alerted = document.getElementById('filter-alerted').value;
+  const busq    = document.getElementById('filter-busqueda').value;
+
+  let url = `${API}/procesos?limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
+  if (cat)     url += `&categoria=${encodeURIComponent(cat)}`;
+  if (score)   url += `&min_score=${score}`;
+  if (alerted !== '') url += `&alerted=${alerted}`;
+  if (busq)    url += `&busqueda=${encodeURIComponent(busq)}`;
+
+  try {
+    const r = await fetch(url, {credentials:'include'});
+    const d = await r.json();
+    totalProcesos = d.total;
+
+    document.getElementById('tabla-total').textContent = d.total.toLocaleString();
+    document.getElementById('page-info').textContent = `Pág. ${currentPage + 1} de ${Math.max(1, Math.ceil(d.total / PAGE_SIZE))}`;
+    document.getElementById('btn-prev').disabled = currentPage === 0;
+    document.getElementById('btn-next').disabled = (currentPage + 1) * PAGE_SIZE >= d.total;
+
+    loading.classList.add('hidden');
+
+    if (!d.items?.length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    tbody.innerHTML = d.items.map(p => `
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="openModal('${p.id_proceso}')">
+        <td class="px-4 py-3">
+          <div class="text-sm font-medium text-gray-900 line-clamp-2 max-w-xs">${p.nombre_proceso || '—'}</div>
+          <div class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">${p.entidad || '—'}</div>
+          ${p.alerted ? '<span class="text-xs text-green-600 font-medium">✓ Alertado</span>' : ''}
+          ${p.doc_generado ? '<span class="text-xs text-purple-600 font-medium ml-2">📄 Doc</span>' : ''}
+        </td>
+        <td class="px-4 py-3">
+          <span class="${catClass(p.categoria)} text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">${catLabel(p.categoria)}</span>
+        </td>
+        <td class="px-4 py-3">
+          <span class="${scoreClass(p.relevance_score)} text-xs font-bold px-2.5 py-1 rounded-full">${p.relevance_score || '—'}</span>
+        </td>
+        <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">${fmtValor(p.valor_proceso)}</td>
+        <td class="px-4 py-3 text-xs text-gray-500">${p.ciudad || '—'}</td>
+        <td class="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">${fmtFecha(p.fecha_publicacion)}</td>
+        <td class="px-4 py-3 text-center">
+          <button onclick="event.stopPropagation(); generarDocId('${p.id_proceso}', this)"
+            class="text-xs bg-green-50 hover:bg-green-100 text-green-700 px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap">
+            📄 Doc
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch {
+    loading.classList.add('hidden');
+    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-sm text-red-500">Error conectando al API. ¿Está corriendo dashboard_api.py?</td></tr>';
+  }
+}
+
+function debounceLoad() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => { currentPage = 0; loadProcesos(); }, 400);
+}
+
+function prevPage() { if (currentPage > 0) { currentPage--; loadProcesos(); } }
+function nextPage() { if ((currentPage + 1) * PAGE_SIZE < totalProcesos) { currentPage++; loadProcesos(); } }
+
+// ── Historial ─────────────────────────────────────────────────────────────────
+
+async function loadRuns() {
+  try {
+    const r = await fetch(`${API}/runs?limit=30`, {credentials:'include'});
+    const d = await r.json();
+    const tbody = document.getElementById('tabla-runs');
+    const empty = document.getElementById('runs-empty');
+    if (!d?.length) { empty.classList.remove('hidden'); tbody.innerHTML = ''; return; }
+    empty.classList.add('hidden');
+    tbody.innerHTML = d.map(run => `
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 text-sm text-gray-700">${fmtFechaHora(run.timestamp)}</td>
+        <td class="px-4 py-3 text-sm text-right text-gray-600">${run.procesos_fetched || 0}</td>
+        <td class="px-4 py-3 text-sm text-right font-medium text-blue-600">${run.procesos_nuevos || 0}</td>
+        <td class="px-4 py-3 text-sm text-right font-medium text-green-600">${run.procesos_alertados || 0}</td>
+        <td class="px-4 py-3 text-sm text-right text-gray-400">${(run.duracion_segundos||0).toFixed(1)}s</td>
+        <td class="px-4 py-3 text-xs ${run.error ? 'text-red-500' : 'text-gray-300'}">${run.error || '✓'}</td>
+      </tr>
+    `).join('');
+  } catch {}
+}
+
+// ── Modal detalle ─────────────────────────────────────────────────────────────
+
+async function openModal(id) {
+  currentModalId = id;
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('modal').classList.add('flex');
+  document.getElementById('modal-nombre').textContent = 'Cargando…';
+
+  try {
+    const r = await fetch(`${API}/procesos/${encodeURIComponent(id)}`, {credentials:'include'});
+    const p = await r.json();
+    document.getElementById('modal-id').textContent = p.id_proceso;
+    document.getElementById('modal-nombre').textContent = p.nombre_proceso || '—';
+    document.getElementById('modal-entidad').textContent = p.entidad || '—';
+    document.getElementById('modal-modalidad').textContent = p.modalidad || '—';
+    document.getElementById('modal-valor').textContent = fmtValor(p.valor_proceso);
+    document.getElementById('modal-ciudad').textContent = `${p.ciudad || '—'} · ${p.departamento || '—'}`;
+    document.getElementById('modal-estado').textContent = p.estado || '—';
+    document.getElementById('modal-fecha').textContent = fmtFecha(p.fecha_publicacion);
+    document.getElementById('modal-justificacion').textContent = p.justificacion || 'Sin justificación registrada';
+
+    const catTag = document.getElementById('modal-cat-tag');
+    catTag.textContent = catLabel(p.categoria);
+    catTag.className = `text-xs font-semibold px-2.5 py-1 rounded-full ${catClass(p.categoria)}`;
+
+    const scoreBadge = document.getElementById('modal-score-badge');
+    scoreBadge.textContent = `Score ${p.relevance_score || 0}`;
+    scoreBadge.className = `text-xs font-bold px-2.5 py-1 rounded-full ${scoreClass(p.relevance_score)}`;
+
+    const link = document.getElementById('modal-link');
+    link.href = p.url_secop || '#';
+    link.classList.toggle('opacity-40', !p.url_secop);
+  } catch {
+    document.getElementById('modal-nombre').textContent = 'Error cargando proceso';
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.add('hidden');
+  document.getElementById('modal').classList.remove('flex');
+  currentModalId = null;
+}
+
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ── Generar Word ───────────────────────────────────────────────────────────────
+
+async function generarDoc() {
+  if (!currentModalId) return;
+  await generarDocId(currentModalId, document.getElementById('modal-btn-doc'));
+}
+
+async function generarDocId(id, btn) {
+  const orig = btn.innerHTML;
+  btn.textContent = '⏳ Generando…';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch(`${API}/generar/${encodeURIComponent(id)}`, { method: 'POST', credentials:'include' });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || 'Error');
+    }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const cd   = r.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename=(.+)/);
+    a.download = match ? match[1] : `proceso_${id}.docx`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    btn.textContent = '✓ Descargado';
+    btn.className = btn.className.replace('green', 'gray');
+  } catch (e) {
+    alert('Error generando documento: ' + e.message);
+    btn.innerHTML = orig;
+    btn.disabled = false;
+  }
+}
+
+// ── Búsqueda manual ───────────────────────────────────────────────────────────
+
+async function triggerBusqueda() {
+  const btn = document.getElementById('btn-buscar');
+  const status = document.getElementById('buscar-status');
+  const label = document.getElementById('buscar-label');
+  const icon  = document.getElementById('buscar-icon');
+
+  try {
+    const check = await fetch(`${API}/buscar/estado`);
+    const state = await check.json();
+    if (state.en_curso) {
+      status.textContent = 'Búsqueda en progreso…';
+      status.classList.remove('hidden');
+      return;
+    }
+  } catch { return; }
+
+  btn.disabled = true;
+  label.textContent = 'Buscando…';
+  icon.textContent = '⏳';
+  status.classList.remove('hidden');
+  status.textContent = 'Iniciando búsqueda en Socrata…';
+
+  try {
+    await fetch(`${API}/buscar`, { method: 'POST', credentials:'include' });
+    status.textContent = 'Búsqueda iniciada — puede tardar 1-2 min';
+
+    let polls = 0;
+    const poll = setInterval(async () => {
+      polls++;
+      try {
+        const r = await fetch(`${API}/buscar/estado`);
+        const s = await r.json();
+        if (!s.en_curso || polls > 60) {
+          clearInterval(poll);
+          btn.disabled = false;
+          label.textContent = 'Buscar Ahora';
+          icon.textContent = '🔍';
+          status.textContent = '✓ Búsqueda completada';
+          setTimeout(() => status.classList.add('hidden'), 3000);
+          loadStats();
+        }
+      } catch { clearInterval(poll); }
+    }, 3000);
+  } catch {
+    btn.disabled = false;
+    label.textContent = 'Buscar Ahora';
+    icon.textContent = '🔍';
+    status.textContent = 'Error iniciando búsqueda';
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+function refreshAll() {
+  loadStats();
+  const activeSection = document.querySelector('[id^="section-"]:not(.hidden)');
+  if (activeSection?.id === 'section-procesos') loadProcesos();
+  if (activeSection?.id === 'section-historial') loadRuns();
+}
+
+document.getElementById('header-date').textContent = new Date().toLocaleDateString('es-CO', {
+  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+});
+
+loadStats();
+setInterval(loadStats, 60000);
+</script>
+</body>
+</html>

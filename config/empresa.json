@@ -1,0 +1,56 @@
+{
+  "razon_social": "VECTOR PRO SERVICES S.A.S.",
+  "nit": "[COMPLETAR_NIT]",
+  "representante_legal": "[COMPLETAR_NOMBRE_REP_LEGAL]",
+  "tipo_empresa": "Microempresa",
+  "municipio": "Rivera",
+  "departamento": "Huila",
+  "direccion": "[COMPLETAR_DIRECCION]",
+  "telefono": "[COMPLETAR_TELEFONO]",
+  "email": "[COMPLETAR_EMAIL]",
+
+  "anos_constituida": 3,
+  "facturacion_anual_aprox_cop": 200000000,
+  "capacidad_operacional_max_cop": 80000000,
+
+  "capacidades": [
+    "Suministro institucional: papelería, dotaciones escolares, mobiliario básico, útiles escolares, elementos de oficina",
+    "Servicios logísticos y de eventos: capacitaciones, talleres, refrigerios, jornadas comunitarias, actividades culturales",
+    "Proyectos sociales: intervención con población vulnerable, primera infancia, adulto mayor, proyectos productivos rurales",
+    "Servicios ambientales: reforestación, mantenimiento de zonas verdes, viveros, insumos agropecuarios, saneamiento",
+    "Mantenimiento locativo: pintura, electricidad básica, plomería, obra civil menor, materiales de construcción, adecuaciones"
+  ],
+
+  "experiencia_relevante": [
+    "Contratos de suministro con alcaldías municipales del Huila",
+    "Servicios logísticos para entidades educativas y comunitarias",
+    "Mantenimiento locativo en infraestructura pública menor"
+  ],
+
+  "certificaciones": [
+    "RUT actualizado",
+    "Cámara de Comercio vigente",
+    "RUP (Registro Único de Proponentes) actualizado"
+  ],
+
+  "entidades_objetivo": [
+    "Alcaldías municipales del Huila (Rivera, Neiva, Pitalito, Garzón, La Plata, Campoalegre, Suaza)",
+    "Gobernación del Huila",
+    "Instituciones educativas departamentales",
+    "ICBF Regional Huila",
+    "SENA Regional Huila",
+    "Hospitales públicos del departamento"
+  ],
+
+  "criterios_no_aplicar": [
+    "Procesos con valor superior a 80M COP (excede capacidad operacional)",
+    "Procesos con plazo de cierre menor a 24 horas (no hay tiempo para preparar propuesta)",
+    "Procesos fuera del Huila",
+    "Procesos que requieran experiencia específica en obras civiles mayores",
+    "Procesos que exijan personal técnico especializado del que la empresa no dispone"
+  ],
+
+  "valor_minimo_interes_cop": 3000000,
+  "valor_maximo_capacidad_cop": 80000000,
+  "plazo_minimo_cierre_horas": 24
+}
