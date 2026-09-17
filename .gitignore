@@ -1,5 +1,7 @@
 # Secretos
 .env
+.env.*
+!.env.example
 
 # Entorno / cache
 .venv/
