@@ -55,6 +55,8 @@ claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 conn   = None
 config = {}
 CHAT_IDS = [int(cid.strip()) for cid in TELEGRAM_CHAT_ID.split(",") if cid.strip()]
+# Opcional: si TELEGRAM_CHAT_ID es un grupo (ID negativo), lista de user IDs autorizados a escribir
+USER_IDS = [int(uid.strip()) for uid in os.getenv("TELEGRAM_USER_IDS", "").split(",") if uid.strip()]
 
 
 SYSTEM_CONVERSACIONAL = """Eres el asistente de contratación de VECTOR PRO SERVICES S.A.S. en Rivera, Huila.
@@ -998,6 +1000,13 @@ def _accion_consultar_db(chat_id: int, consulta: str, mensaje_base: str, pregunt
 @bot.message_handler(func=lambda m: True)
 def handle_message(m):
     chat_id = m.chat.id
+    if chat_id not in CHAT_IDS:
+        log.warning("Chat NO autorizado: %s (@%s)", chat_id, getattr(m.from_user, "username", "?"))
+        return
+    if USER_IDS and getattr(m.from_user, "id", None) not in USER_IDS:
+        log.warning("Usuario NO autorizado en chat %s: %s (@%s)", chat_id,
+                    getattr(m.from_user, "id", "?"), getattr(m.from_user, "username", "?"))
+        return
     text    = m.text or ""
 
     # Comando especial: resetear conversación
