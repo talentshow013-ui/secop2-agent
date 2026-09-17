@@ -536,7 +536,7 @@ def _run_secop_job(dias: int = 30):
     except Exception as e:
         log.error("Error en job SECOP: %s", e, exc_info=True)
         stats["error"] = str(e)
-        _broadcast(f"Se presentó un error en la consulta automática. El equipo técnico fue notificado.\nDetalle: {str(e)[:200]}")
+        _broadcast("Se presentó un error. El detalle quedó en el registro del sistema.")
         db_manager.log_run(conn, {**stats, "duracion": round(time.time() - start, 1)})
 
 
@@ -1140,10 +1140,9 @@ def main():
     threading.Thread(target=_scheduler_loop, daemon=True).start()
 
     def handle_error(exc):
-        msg = f"⚠️ Error en el bot: {type(exc).__name__}: {str(exc)[:200]}"
-        log.error(msg)
+        log.error("Error en el bot: %s: %s", type(exc).__name__, exc, exc_info=True)
         try:
-            _broadcast(msg)
+            _broadcast("Se presentó un error. El detalle quedó en el registro del sistema.")
         except Exception:
             pass
 
