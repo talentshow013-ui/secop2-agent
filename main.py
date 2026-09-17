@@ -640,33 +640,6 @@ def _check_cierres():
         db_manager.mark_cierre_alertado(conn, p["id_proceso"])
 
 
-def _procesar_ordenes_api():
-    """Revisa órdenes creadas desde el dashboard y las ejecuta."""
-    try:
-        ordenes = db_manager.get_pending_orders(conn)
-        for orden in ordenes:
-            order_id = orden["id"]
-            accion = orden["accion"]
-            params = orden["params"] or ""
-            log.info("Procesando orden API #%d: %s (%s)", order_id, accion, params)
-            db_manager.mark_order_done(conn, order_id, "ejecutando")
-            try:
-                if accion == "buscar":
-                    dias = 7
-                    if "dias=" in params:
-                        try:
-                            dias = max(1, min(int(params.split("dias=")[1]), 60))
-                        except Exception:
-                            pass
-                    _run_secop_job(dias)
-                db_manager.mark_order_done(conn, order_id, "completado")
-            except Exception as e:
-                log.error("Error ejecutando orden %d: %s", order_id, e)
-                db_manager.mark_order_done(conn, order_id, "error")
-    except Exception as e:
-        log.error("Error en procesador de órdenes: %s", e)
-
-
 def _scheduler_loop():
     schedule.every().day.at("08:00").do(_run_secop_job, 3)
     schedule.every().day.at("14:00").do(_run_secop_job, 3)
@@ -677,7 +650,6 @@ def _scheduler_loop():
     schedule.every().monday.at("08:30").do(_ranking_semanal)
     schedule.every().day.at("02:00").do(_backup_db)
     schedule.every().day.at("02:30").do(_limpiar_db)
-    schedule.every(10).seconds.do(_procesar_ordenes_api)
     log.info("Scheduler activo — búsquedas 08:00|14:00|20:00 (3 días) · órdenes API cada 10s")
     while True:
         schedule.run_pending()

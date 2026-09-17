@@ -1,6 +1,6 @@
 # SECOP 2 Agent — Monitor de Contratación Pública
 
-Bot conversacional de Telegram + Dashboard web que monitorea SECOP 2 (Colombia)
+Bot conversacional de Telegram que monitorea SECOP 2 (Colombia) y envía alertas
 automáticamente y genera borradores de propuestas con IA.
 
 ---
@@ -55,8 +55,6 @@ TELEGRAM_TOKEN=tu_token_de_BotFather
 TELEGRAM_CHAT_ID=tu_chat_id_o_lista_separada_por_comas
 ANTHROPIC_API_KEY=sk-ant-api03-...
 SOCRATA_APP_TOKEN=opcional_pero_recomendado
-DASHBOARD_USER=usuario_del_dashboard
-DASHBOARD_PASS=clave_del_dashboard
 ```
 
 **Cómo obtener cada credencial:**
@@ -97,21 +95,14 @@ al tipo de contratos que le interesan a la empresa.
 
 ### Windows (manera fácil)
 
-Doble clic en `start.bat` — abre el API, el bot y el dashboard de una.
+Doble clic en `start.bat` — activa el entorno e inicia el bot con su programador.
 
 ### Manual (Windows o Linux)
 
-**Terminal 1 — Bot:**
 ```bash
 python main.py
 ```
-
-**Terminal 2 — API del dashboard:**
-```bash
-python dashboard_api.py
-```
-
-**Navegador:** abre `http://localhost:8000` (login con `DASHBOARD_USER` / `DASHBOARD_PASS`)
+El bot queda escuchando en Telegram y corre las búsquedas automáticas a las 08:00, 14:00 y 20:00.
 
 ---
 
@@ -156,8 +147,7 @@ SECOP2/
 ├── secop_playwright.py  ← (Opcional) Lectura de PDFs
 ├── db_manager.py        ← SQLite con WAL mode
 ├── cost_tracker.py      ← Control de gasto Claude
-├── dashboard_api.py     ← FastAPI con auth básica
-├── dashboard.html       ← Frontend Tailwind
+├── research/            ← Scripts de investigación a la medida
 ├── config/
 │   ├── empresa.json     ← Datos de la empresa cliente
 │   └── keywords.json    ← Palabras clave de búsqueda
@@ -199,7 +189,6 @@ Para problemas técnicos:
 - **Python 3** + pyTelegramBotAPI
 - **Claude Haiku 4.5** → conversación + scoring (rápido y económico)
 - **Claude Sonnet 4.6** → generación de documentos jurídicos
-- **FastAPI** → API del dashboard
 - **SQLite WAL** → persistencia
 - **Socrata API** → consulta oficial SECOP 2
 - **Playwright** (opcional) → lectura de PDFs (limitado por anti-bot)

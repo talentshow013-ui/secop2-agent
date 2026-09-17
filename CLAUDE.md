@@ -1,7 +1,7 @@
 # SECOP2 Agent — guía para Claude Code
 
 Agente de contratación pública para VECTOR PRO SERVICES S.A.S. (Rivera, Huila). Bot de Telegram
-conversacional + dashboard web + scripts de investigación sobre datos abiertos de SECOP II.
+conversacional con alertas por Telegram + scripts de investigación sobre datos abiertos de SECOP II.
 Lee `README.md` para instalación y `MEMORY.md` para el historial detallado del proyecto.
 
 ## Cómo correr
@@ -10,9 +10,8 @@ python -m venv .venv && .venv/Scripts/activate      # Windows; en Linux: source 
 pip install -r requirements.txt
 cp .env.example .env                                  # y llenar credenciales
 python main.py                                        # bot + scheduler 08:00 | 14:00 | 20:00
-python dashboard_api.py                               # dashboard en http://localhost:8000
 ```
-`start.bat` hace todo lo anterior en Windows. Playwright es opcional (ver limitaciones).
+`start.bat` hace todo lo anterior en Windows. No hay panel web: la interfaz es el bot de Telegram (retirado del repo el 2026-09-17). Playwright es opcional (ver limitaciones).
 
 ### Modo solo investigación (sin Telegram ni API de Anthropic)
 Si este repo se usa únicamente para consultar SECOP desde Claude Code, **no hace falta ninguna
@@ -23,7 +22,7 @@ pip install -r requirements-research.txt          # solo sodapy + python-dotenv
 python research/buscar_procesos.py salida.json    # funciona sin .env (verificado en clon limpio 2026-09-16)
 ```
 Opcional: crear `.env` con solo `SOCRATA_APP_TOKEN=...` para evitar el throttling. No tocar
-`main.py`, `dashboard_api.py` ni `doc_generator.py` en este modo — esos sí exigen las demás credenciales.
+`main.py` ni `doc_generator.py` en este modo — esos sí exigen las demás credenciales.
 
 ## De dónde salen los datos: API Socrata de datos.gov.co
 Todo viene de la **API SODA (Socrata Open Data API)** de `www.datos.gov.co`, vía `sodapy`.
@@ -81,7 +80,6 @@ deja en `output/docs/` (Claude Code lo lee directo) o se lo reenvía al bot por 
 main.py               bot Telegram + scheduler          secop_scraper.py    consultas Socrata p6dx-8zbt
 relevance_scorer.py   Claude Haiku, scoring en batch     doc_generator.py    Word 8 secciones (Claude Sonnet)
 db_manager.py         SQLite (procesos, run_log)         report_generator.py Excel por categoría
-dashboard_api.py      FastAPI + auth básica              dashboard.html      Tailwind
 config/keywords.json  filtros (Huila, Mínima Cuantía, 5 categorías)
 config/empresa.json   perfil de la empresa para los documentos
 research/             scripts de inteligencia de mercado (ver research/README.md)

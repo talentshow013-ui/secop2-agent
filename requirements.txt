@@ -7,7 +7,5 @@ sodapy>=2.2.0
 pandas>=2.0.0
 openpyxl>=3.1.0
 requests>=2.31.0
-fastapi>=0.111.0
-uvicorn>=0.29.0
 playwright>=1.40.0
 pdfplumber>=0.10.0

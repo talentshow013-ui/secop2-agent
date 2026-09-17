@@ -90,7 +90,10 @@ python main.py
 
 ---
 
-## DASHBOARD WEB — ✅ COMPLETADO (confirmado 2026-07-14)
+## DASHBOARD WEB — RETIRADO DEL REPO el 2026-09-17 (queda en el historial de git)
+Se eliminó del repositorio para la entrega a Dolmen S.A. E.S.P.: el producto entregado es solo el
+agente con notificaciones por Telegram. Lo que sigue es historia:
+
 El dashboard ya está construido y funcional: `dashboard_api.py` (FastAPI con auth básica
 `DASHBOARD_USER`/`DASHBOARD_PASS`) + `dashboard.html` (Tailwind). Se corre con `start.bat`
 o manualmente (`python dashboard_api.py`, abrir `http://localhost:8000`). Ver README.md
