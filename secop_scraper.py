@@ -2,6 +2,7 @@ import time
 import logging
 import json
 from datetime import datetime, timedelta
+import requests
 from sodapy import Socrata
 
 log = logging.getLogger(__name__)
@@ -65,15 +66,16 @@ def _build_where_clause(keywords: list, departamento: str, modalidad: str, estad
     mod_esc = modalidad.replace("'", "''")
     fecha_limite = (datetime.now() - timedelta(days=dias)).strftime("%Y-%m-%dT00:00:00")
 
-    return (
-        f"upper(departamento_entidad) like upper('%{dept_esc}%') "
-        f"AND upper(modalidad_de_contratacion) like upper('%{mod_esc}%') "
-        f"AND fecha_de_publicacion_del >= '{fecha_limite}' "
-        f"AND ({kw_clause})"
-    )
+    parts = [f"fecha_de_publicacion_del >= '{fecha_limite}'", f"({kw_clause})"]
+    # Filtros vacíos (búsqueda nacional / todas las modalidades) no se envían: la consulta es más rápida
+    if dept_esc.strip():
+        parts.insert(0, f"upper(departamento_entidad) like upper('%{dept_esc}%')")
+    if mod_esc.strip():
+        parts.insert(1 if dept_esc.strip() else 0, f"upper(modalidad_de_contratacion) like upper('%{mod_esc}%')")
+    return " AND ".join(parts)
 
 
-def _fetch_with_retry(client, dataset_id: str, where: str, page_size: int, offset: int, attempts: int = 3):
+def _fetch_with_retry(client, dataset_id: str, where: str, page_size: int, offset: int, attempts: int = 4):
     last_exc = None
     for attempt in range(attempts):
         try:
@@ -87,13 +89,16 @@ def _fetch_with_retry(client, dataset_id: str, where: str, page_size: int, offse
             )
         except Exception as e:
             last_exc = e
+            resp = getattr(e, "response", None)
+            if resp is not None and 400 <= resp.status_code < 500:
+                raise  # error del cliente (token inválido, consulta mal formada): reintentar no ayuda
             wait = 5 * (2 ** attempt)
             log.warning("Intento %d/%d falló: %s. Reintentando en %ds", attempt + 1, attempts, e, wait)
             time.sleep(wait)
     raise last_exc
 
 
-def _fetch_all_pages(client, dataset_id: str, where: str, page_size: int = 1000) -> list:
+def _fetch_all_pages(client, dataset_id: str, where: str, page_size: int = 500) -> list:
     results = []
     offset = 0
     while True:
@@ -196,12 +201,28 @@ def _filter_by_value(processes: list, valor_min: float = 0, valor_max: float = N
     return filtered
 
 
-def run_scrape(config: dict, app_token: str, dias: int = 30) -> list:
-    client = Socrata(
+def _make_client(config: dict, app_token):
+    return Socrata(
         config["socrata"]["domain"],
-        app_token,
-        timeout=30,
+        app_token or None,
+        timeout=config["socrata"].get("timeout", 120),
     )
+
+
+def run_scrape(config: dict, app_token: str, dias: int = 30) -> list:
+    try:
+        return _run_scrape_once(config, app_token, dias)
+    except requests.exceptions.HTTPError as e:
+        resp = getattr(e, "response", None)
+        if app_token and resp is not None and resp.status_code == 403 and "app_token" in resp.text.lower():
+            log.error("SOCRATA_APP_TOKEN inválido (403 de datos.gov.co). Verifica que sea el App Token, "
+                      "no el Secret Token, y sin espacios ni comillas. Reintentando sin token...")
+            return _run_scrape_once(config, None, dias)
+        raise
+
+
+def _run_scrape_once(config: dict, app_token, dias: int) -> list:
+    client = _make_client(config, app_token)
 
     all_keywords = []
     for cat_data in config["categories"].values():
@@ -221,7 +242,7 @@ def run_scrape(config: dict, app_token: str, dias: int = 30) -> list:
         client,
         config["socrata"]["dataset_id"],
         where,
-        page_size=config["socrata"].get("page_size", 1000),
+        page_size=config["socrata"].get("page_size", 500),
     )
     log.info("Total registros obtenidos de Socrata: %d", len(raw_records))
 
