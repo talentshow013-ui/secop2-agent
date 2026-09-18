@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 
 log = logging.getLogger(__name__)
-_lock = threading.Lock()
+_lock = threading.RLock()  # reentrante: una función con lock puede llamar a otra con lock
 
 
 def get_connection(db_path: str) -> sqlite3.Connection:
@@ -13,10 +13,10 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     # WAL mode permite lectores y escritores simultáneos
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA busy_timeout=10000")
-        conn.execute("PRAGMA foreign_keys=ON")
+        _q1(conn, "PRAGMA journal_mode=WAL")
+        _q1(conn, "PRAGMA synchronous=NORMAL")
+        _q1(conn, "PRAGMA busy_timeout=10000")
+        _q1(conn, "PRAGMA foreign_keys=ON")
     except Exception as e:
         log.warning("No se pudieron aplicar PRAGMAs: %s", e)
     return conn
@@ -95,15 +95,6 @@ def init_db(db_path: str) -> sqlite3.Connection:
                 texto_docs  TEXT,
                 timestamp   TEXT
             );
-
-            CREATE TABLE IF NOT EXISTS api_orders (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                accion      TEXT NOT NULL,
-                params      TEXT,
-                estado      TEXT DEFAULT 'pendiente',
-                timestamp   TEXT NOT NULL,
-                completado  TEXT
-            );
         """)
         conn.commit()
 
@@ -115,29 +106,37 @@ def init_db(db_path: str) -> sqlite3.Connection:
 
 
 def _migrate(conn: sqlite3.Connection):
-    """Aplica migraciones de schema sin borrar datos."""
-    migrations = [
-        "ALTER TABLE procesos ADD COLUMN fecha_cierre TEXT",
-        "ALTER TABLE procesos ADD COLUMN cierre_alertado INTEGER DEFAULT 0",
-        "CREATE TABLE IF NOT EXISTS proceso_contexto (chat_id INTEGER PRIMARY KEY, id_proceso TEXT, url_proceso TEXT, nombre TEXT, entidad TEXT, texto_docs TEXT, timestamp TEXT)",
-        "CREATE TABLE IF NOT EXISTS memory_summary (chat_id INTEGER PRIMARY KEY, resumen TEXT, msg_count INTEGER DEFAULT 0, timestamp TEXT)",
-        "CREATE TABLE IF NOT EXISTS hechos (id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL, hecho TEXT NOT NULL, categoria TEXT, importancia INTEGER DEFAULT 1, timestamp TEXT)",
-        "CREATE INDEX IF NOT EXISTS idx_hechos_chat ON hechos(chat_id, importancia DESC)",
-    ]
-    for sql in migrations:
-        try:
-            conn.execute(sql)
-            conn.commit()
-            log.info("Migración aplicada: %s", sql[:60])
-        except sqlite3.OperationalError:
-            pass  # columna ya existe
+    """Aplica migraciones de schema sin borrar datos. Solo informa cuando cambia algo."""
+    columnas = {r[1] for r in _q(conn, "PRAGMA table_info(procesos)")}
+    nuevas = {
+        "fecha_cierre": "ALTER TABLE procesos ADD COLUMN fecha_cierre TEXT",
+        "cierre_alertado": "ALTER TABLE procesos ADD COLUMN cierre_alertado INTEGER DEFAULT 0",
+    }
+    with _lock:
+        for col, sql in nuevas.items():
+            if col not in columnas:
+                conn.execute(sql)
+                log.info("Migración aplicada: columna procesos.%s", col)
+        # Tabla del panel web retirado (2026-09-17)
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='api_orders'").fetchone():
+            conn.execute("DROP TABLE api_orders")
+            log.info("Migración aplicada: tabla api_orders eliminada")
+        conn.commit()
+
+
+def _q(conn, sql, params=()):
+    """Consulta de lectura protegida por el lock: la conexión es única y la comparten varios hilos."""
+    with _lock:
+        return conn.execute(sql, params).fetchall()
+
+
+def _q1(conn, sql, params=()):
+    with _lock:
+        return conn.execute(sql, params).fetchone()
 
 
 def is_new(conn: sqlite3.Connection, id_proceso: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM procesos WHERE id_proceso = ?", (id_proceso,)
-    ).fetchone()
-    return row is None
+    return _q1(conn, "SELECT 1 FROM procesos WHERE id_proceso = ?", (id_proceso,)) is None
 
 
 def insert_proceso(conn: sqlite3.Connection, proc: dict) -> None:
@@ -187,23 +186,23 @@ def mark_doc_generado(conn: sqlite3.Connection, id_proceso: str) -> None:
 
 
 def get_unalerted(conn: sqlite3.Connection, min_score: int = 60):
-    return conn.execute(
+    return _q(conn, 
         "SELECT * FROM procesos WHERE alerted = 0 AND relevance_score >= ? ORDER BY relevance_score DESC",
         (min_score,)
-    ).fetchall()
+    )
 
 
 def get_recent_alerted(conn: sqlite3.Connection, limit: int = 5):
-    return conn.execute(
+    return _q(conn, 
         "SELECT * FROM procesos WHERE alerted = 1 ORDER BY fecha_scraped DESC LIMIT ?",
         (limit,)
-    ).fetchall()
+    )
 
 
 def get_process_by_id(conn: sqlite3.Connection, id_proceso: str):
-    return conn.execute(
+    return _q1(conn, 
         "SELECT * FROM procesos WHERE id_proceso = ?", (id_proceso,)
-    ).fetchone()
+    )
 
 
 def log_run(conn: sqlite3.Connection, stats: dict) -> None:
@@ -224,14 +223,14 @@ def log_run(conn: sqlite3.Connection, stats: dict) -> None:
 
 
 def get_last_run(conn: sqlite3.Connection):
-    row = conn.execute(
+    row = _q1(conn, 
         "SELECT * FROM run_log ORDER BY id DESC LIMIT 1"
-    ).fetchone()
+    )
     return dict(row) if row else {}
 
 
 def count_processes(conn: sqlite3.Connection) -> int:
-    return conn.execute("SELECT COUNT(*) FROM procesos").fetchone()[0]
+    return _q1(conn, "SELECT COUNT(*) FROM procesos")[0]
 
 
 def delete_hecho_like(conn: sqlite3.Connection, chat_id: int, texto: str) -> int:
@@ -261,26 +260,26 @@ def save_hecho(conn: sqlite3.Connection, chat_id: int, hecho: str, categoria: st
 
 def get_hechos_relevantes(conn: sqlite3.Connection, chat_id: int, limite: int = 10) -> list:
     """Retorna los hechos más importantes del usuario."""
-    rows = conn.execute(
+    rows = _q(conn, 
         "SELECT hecho, categoria, importancia FROM hechos WHERE chat_id=? "
         "ORDER BY importancia DESC, timestamp DESC LIMIT ?",
         (chat_id, limite)
-    ).fetchall()
+    )
     return [dict(r) for r in rows]
 
 
 def get_hechos_por_categoria(conn: sqlite3.Connection, chat_id: int, categoria: str) -> list:
-    rows = conn.execute(
+    rows = _q(conn, 
         "SELECT hecho FROM hechos WHERE chat_id=? AND categoria=? ORDER BY importancia DESC LIMIT 5",
         (chat_id, categoria)
-    ).fetchall()
+    )
     return [r["hecho"] for r in rows]
 
 
 def get_memory_summary(conn: sqlite3.Connection, chat_id: int) -> dict:
-    row = conn.execute(
+    row = _q1(conn, 
         "SELECT * FROM memory_summary WHERE chat_id = ?", (chat_id,)
-    ).fetchone()
+    )
     return dict(row) if row else {}
 
 
@@ -294,9 +293,9 @@ def save_memory_summary(conn: sqlite3.Connection, chat_id: int, resumen: str, ms
 
 
 def count_messages(conn: sqlite3.Connection, chat_id: int) -> int:
-    row = conn.execute(
+    row = _q1(conn, 
         "SELECT COUNT(*) FROM conversaciones WHERE chat_id = ?", (chat_id,)
-    ).fetchone()
+    )
     return row[0] if row else 0
 
 
@@ -319,9 +318,9 @@ def save_proceso_contexto(conn: sqlite3.Connection, chat_id: int, proceso: dict,
 
 
 def get_proceso_contexto(conn: sqlite3.Connection, chat_id: int) -> dict:
-    row = conn.execute(
+    row = _q1(conn, 
         "SELECT * FROM proceso_contexto WHERE chat_id = ?", (chat_id,)
-    ).fetchone()
+    )
     return dict(row) if row else {}
 
 
@@ -329,38 +328,6 @@ def clear_proceso_contexto(conn: sqlite3.Connection, chat_id: int):
     with _lock:
         conn.execute("DELETE FROM proceso_contexto WHERE chat_id = ?", (chat_id,))
         conn.commit()
-
-
-def create_order(conn: sqlite3.Connection, accion: str, params: str = "") -> int:
-    with _lock:
-        cur = conn.execute(
-            "INSERT INTO api_orders (accion, params, estado, timestamp) VALUES (?, ?, 'pendiente', ?)",
-            (accion, params, datetime.now().isoformat())
-        )
-        conn.commit()
-        return cur.lastrowid
-
-
-def get_pending_orders(conn: sqlite3.Connection):
-    return conn.execute(
-        "SELECT * FROM api_orders WHERE estado = 'pendiente' ORDER BY id ASC"
-    ).fetchall()
-
-
-def mark_order_done(conn: sqlite3.Connection, order_id: int, estado: str = "completado"):
-    with _lock:
-        conn.execute(
-            "UPDATE api_orders SET estado = ?, completado = ? WHERE id = ?",
-            (estado, datetime.now().isoformat(), order_id)
-        )
-        conn.commit()
-
-
-def has_running_order(conn: sqlite3.Connection) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM api_orders WHERE estado IN ('pendiente', 'ejecutando') LIMIT 1"
-    ).fetchone()
-    return row is not None
 
 
 def save_message(conn: sqlite3.Connection, chat_id: int, role: str, content: str) -> None:
@@ -373,11 +340,11 @@ def save_message(conn: sqlite3.Connection, chat_id: int, role: str, content: str
 
 
 def get_history(conn: sqlite3.Connection, chat_id: int, limit: int = 20) -> list:
-    rows = conn.execute(
+    rows = _q(conn, 
         "SELECT role, content FROM conversaciones WHERE chat_id = ? "
         "ORDER BY id DESC LIMIT ?",
         (chat_id, limit)
-    ).fetchall()
+    )
     return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
 
 
@@ -397,52 +364,39 @@ def purge_old_conversations(conn: sqlite3.Connection, dias: int = 30) -> int:
     return cur.rowcount
 
 
-def purge_old_orders(conn: sqlite3.Connection, dias: int = 7) -> int:
-    """Borra órdenes API completadas o con error más viejas que N días."""
-    from datetime import timedelta
-    limite = (datetime.now() - timedelta(days=dias)).isoformat()
-    with _lock:
-        cur = conn.execute(
-            "DELETE FROM api_orders WHERE estado IN ('completado','error') AND timestamp < ?",
-            (limite,)
-        )
-        conn.commit()
-    return cur.rowcount
-
-
 def get_ultimo_publicado(conn: sqlite3.Connection):
-    return conn.execute(
+    return _q1(conn, 
         "SELECT * FROM procesos WHERE fecha_publicacion != '' "
         "ORDER BY fecha_publicacion DESC LIMIT 1"
-    ).fetchone()
+    )
 
 
 def get_procesos_hoy(conn: sqlite3.Connection):
     from datetime import date
     hoy = date.today().isoformat()
-    return conn.execute(
+    return _q(conn, 
         "SELECT * FROM procesos WHERE fecha_scraped LIKE ? ORDER BY relevance_score DESC",
         (f"{hoy}%",)
-    ).fetchall()
+    )
 
 
 def get_procesos_por_categoria(conn: sqlite3.Connection, categoria: str, limit: int = 5):
-    return conn.execute(
+    return _q(conn, 
         "SELECT * FROM procesos WHERE categoria = ? ORDER BY relevance_score DESC, fecha_scraped DESC LIMIT ?",
         (categoria, limit)
-    ).fetchall()
+    )
 
 
 def get_procesos_por_cerrar(conn: sqlite3.Connection, dias: int = 2) -> list:
     from datetime import date, timedelta
     hoy = date.today().isoformat()
     limite = (date.today() + timedelta(days=dias)).isoformat()
-    return conn.execute(
+    return _q(conn, 
         "SELECT * FROM procesos WHERE fecha_cierre != '' AND fecha_cierre IS NOT NULL "
         "AND fecha_cierre >= ? AND fecha_cierre <= ? AND cierre_alertado = 0 "
         "AND relevance_score >= 60 ORDER BY fecha_cierre ASC",
         (hoy, limite + "T23:59:59")
-    ).fetchall()
+    )
 
 
 def mark_cierre_alertado(conn: sqlite3.Connection, id_proceso: str) -> None:
@@ -454,18 +408,28 @@ def mark_cierre_alertado(conn: sqlite3.Connection, id_proceso: str) -> None:
 
 
 def get_resumen_db(conn: sqlite3.Connection) -> dict:
-    total = conn.execute("SELECT COUNT(*) FROM procesos").fetchone()[0]
-    relevantes = conn.execute("SELECT COUNT(*) FROM procesos WHERE relevance_score >= 60").fetchone()[0]
-    ultimo = conn.execute(
+    total = _q1(conn, "SELECT COUNT(*) FROM procesos")[0]
+    relevantes = _q1(conn, "SELECT COUNT(*) FROM procesos WHERE relevance_score >= 60")[0]
+    ultimo = _q1(conn, 
         "SELECT nombre_proceso, entidad, ciudad, fecha_publicacion, relevance_score, categoria "
         "FROM procesos WHERE fecha_publicacion != '' ORDER BY fecha_publicacion DESC LIMIT 1"
-    ).fetchone()
-    por_cat = conn.execute(
+    )
+    por_cat = _q(conn, 
         "SELECT categoria, COUNT(*) as n FROM procesos GROUP BY categoria ORDER BY n DESC"
-    ).fetchall()
+    )
     return {
         "total": total,
         "relevantes": relevantes,
         "ultimo": dict(ultimo) if ultimo else None,
         "por_categoria": [dict(r) for r in por_cat],
     }
+
+
+def backup_db(conn: sqlite3.Connection, destino: str) -> None:
+    """Copia consistente de la base (incluye lo pendiente en el WAL)."""
+    with _lock:
+        dst = sqlite3.connect(destino)
+        try:
+            conn.backup(dst)
+        finally:
+            dst.close()
