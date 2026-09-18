@@ -11,12 +11,27 @@ log = logging.getLogger(__name__)
 
 DRAFT_NOTE = "BORRADOR DE REFERENCIA — GENERADO CON DATOS REALES DE SECOP II — VERIFICAR ANTES DE PRESENTAR"
 
-EMPRESA = {
-    "nombre":    "VECTOR PRO SERVICES S.A.S.",
-    "municipio": "Rivera, Huila",
-    "tipo":      "Microempresa",
-    "modalidad": "Mínima Cuantía",
-}
+def _empresa() -> dict:
+    """Perfil de la empresa oferente desde config/empresa.json (nunca escrito en el código)."""
+    import json
+    from pathlib import Path
+    try:
+        with open(Path(__file__).parent / "config" / "empresa.json", encoding="utf-8") as f:
+            e = json.load(f)
+    except Exception as ex:
+        log.warning("No se pudo cargar empresa.json: %s", ex)
+        e = {}
+    ciudad = ", ".join(x for x in (e.get("municipio", ""), e.get("departamento", "")) if x)
+    return {
+        "nombre":    e.get("razon_social", "[EMPRESA OFERENTE]"),
+        "ciudad":    ciudad or "[CIUDAD]",
+        "tipo":      e.get("tipo_empresa", ""),
+        "nit":       e.get("nit", "[COMPLETAR]"),
+        "rep_legal": e.get("representante_legal", "[COMPLETAR]"),
+        "direccion": e.get("direccion", "[COMPLETAR]"),
+        "telefono":  e.get("telefono", "[COMPLETAR]"),
+        "email":     e.get("email", "[COMPLETAR]"),
+    }
 
 # Instrucciones muy estrictas por sección — mínima libertad creativa
 SECTIONS = [
@@ -33,7 +48,7 @@ SECTIONS = [
 - Municipio: [usar ciudad]
 - Fecha de publicación: [usar fecha_publicacion]
 - Estado: [usar estado]
-- Empresa oferente: VECTOR PRO SERVICES S.A.S. — Rivera, Huila
+- Empresa oferente: {empresa} — {empresa_ciudad}
 
 Si algún campo no está en los datos, escribe literalmente [DATO NO DISPONIBLE EN SECOP II].
 NO agregues ningún campo que no esté en la lista anterior. NO inventes información.""",
@@ -53,7 +68,7 @@ Secciones obligatorias (redáctalas todas aunque sea con marcadores):
    Transcribir y ampliar el objeto: {objeto}
 
 3. FUNDAMENTO JURÍDICO DE LA MODALIDAD
-   Justificar por qué aplica Mínima Cuantía según Dec. 1082/2015 Art. 2.2.1.2.1.2.4.
+   Justificar por qué aplica la modalidad del proceso ({modalidad}) según el Decreto 1082 de 2015 (Mínima Cuantía: Art. 2.2.1.2.1.5; Licitación pública: Art. 2.2.1.2.1.1; Selección abreviada: Art. 2.2.1.2.1.2; Concurso de méritos: Art. 2.2.1.2.1.3; Contratación directa: Art. 2.2.1.2.1.4).
 
 4. VALOR ESTIMADO
    El valor del proceso es: {valor_proceso} COP.
@@ -161,7 +176,7 @@ Nota: Todos los campos en [COMPLETAR] deben ser diligenciados por la entidad con
     {
         "key":    "pliego",
         "titulo": "7. PLIEGO DE CONDICIONES",
-        "prompt": """Redacta el pliego de condiciones para proceso de Mínima Cuantía según Dec. 1082/2015.
+        "prompt": """Redacta el pliego de condiciones para un proceso de {modalidad} según Dec. 1082/2015.
 
 Usa los datos del proceso para llenar cada sección. Lo que no tengas datos, marca [COMPLETAR].
 
@@ -186,7 +201,7 @@ SECCIONES OBLIGATORIAS:
    Técnicos: Experiencia en contratos similares [COMPLETAR EXPERIENCIA MÍNIMA].
 
 6. CRITERIOS DE SELECCIÓN
-   Para Mínima Cuantía: Menor precio con cumplimiento de requisitos habilitantes.
+   Si la modalidad es Mínima Cuantía: menor precio con cumplimiento de requisitos habilitantes. En las demás modalidades: los factores de calidad y precio que indique el pliego [COMPLETAR].
 
 7. CRONOGRAMA
    Publicación del proceso: {fecha_publicacion}
@@ -202,8 +217,8 @@ SECCIONES OBLIGATORIAS:
     },
     {
         "key":    "propuesta",
-        "titulo": "8. PROPUESTA ECONÓMICA — VECTOR PRO SERVICES S.A.S.",
-        "prompt": """Genera la propuesta económica de VECTOR PRO SERVICES S.A.S. como proponente.
+        "titulo": "8. PROPUESTA ECONÓMICA — {empresa}",
+        "prompt": """Genera la propuesta económica de {empresa} como proponente.
 
 IMPORTANTE:
 - El valor total de la propuesta NO debe superar {valor_proceso} COP (presupuesto oficial)
@@ -213,19 +228,19 @@ IMPORTANTE:
 ESTRUCTURA:
 
 1. CARTA DE PRESENTACIÓN
-   Ciudad y fecha: Rivera, Huila, [FECHA DE PRESENTACIÓN]
+   Ciudad y fecha: {empresa_ciudad}, [FECHA DE PRESENTACIÓN]
    Dirigida a: [NOMBRE DEL REPRESENTANTE LEGAL DE {entidad}]
    Cargo: [COMPLETAR]
 
    Texto formal ofreciendo los bienes/servicios del proceso {id_proceso}.
-   Mencionar experiencia de VECTOR PRO SERVICES en el sector.
+   Mencionar experiencia de {empresa} en el sector.
    Datos del proponente:
-   - Empresa: VECTOR PRO SERVICES S.A.S.
-   - NIT: [COMPLETAR]
-   - Representante Legal: [COMPLETAR]
-   - Dirección: Rivera, Huila
-   - Teléfono: [COMPLETAR]
-   - Email: [COMPLETAR]
+   - Empresa: {empresa}
+   - NIT: {empresa_nit}
+   - Representante Legal: {empresa_rep_legal}
+   - Dirección: {empresa_direccion}
+   - Teléfono: {empresa_telefono}
+   - Email: {empresa_email}
 
 2. OFERTA ECONÓMICA
    Tabla de ítems coherente con el objeto del proceso.
@@ -234,7 +249,7 @@ ESTRUCTURA:
    Nota al pie: "Precios referenciales. Actualizar con cotizaciones de proveedores antes de presentar."
 
 3. EXPERIENCIA RELACIONADA
-   [COMPLETAR CON CONTRATOS EJECUTADOS POR VECTOR PRO SERVICES EN EL SECTOR]
+   [COMPLETAR CON CONTRATOS EJECUTADOS POR {empresa} EN EL SECTOR]
 
 4. DOCUMENTOS ADJUNTOS (lista de chequeo)
    [ ] RUT actualizado
@@ -253,11 +268,11 @@ def _build_context(proc: dict, docs_text: str = "") -> str:
         f"id_proceso     = {proc.get('id_proceso', 'NO DISPONIBLE')}\n"
         f"objeto         = {proc.get('objeto', proc.get('nombre_proceso', 'NO DISPONIBLE'))}\n"
         f"entidad        = {proc.get('entidad', 'NO DISPONIBLE')}\n"
-        f"modalidad      = {proc.get('modalidad', 'Mínima Cuantía')}\n"
+        f"modalidad      = {proc.get('modalidad', 'NO DISPONIBLE')}\n"
         f"estado         = {proc.get('estado', 'NO DISPONIBLE')}\n"
         f"valor_proceso  = {proc.get('valor_proceso', 'NO DISPONIBLE')}\n"
         f"fecha_pub      = {proc.get('fecha_publicacion', 'NO DISPONIBLE')}\n"
-        f"departamento   = {proc.get('departamento', 'Huila')}\n"
+        f"departamento   = {proc.get('departamento', 'NO DISPONIBLE')}\n"
         f"ciudad         = {proc.get('ciudad', 'NO DISPONIBLE')}\n"
         f"fase           = {proc.get('fase', 'NO DISPONIBLE')}\n"
         f"url_secop      = {proc.get('url_secop', '')}\n"
@@ -280,10 +295,17 @@ def _fill_prompt(template: str, proc: dict) -> str:
         "{entidad}":          proc.get("entidad", "[ENTIDAD NO DISPONIBLE]"),
         "{valor_proceso}":    proc.get("valor_proceso", "[VALOR NO DISPONIBLE]"),
         "{fecha_publicacion}":proc.get("fecha_publicacion", "[FECHA NO DISPONIBLE]"),
-        "{departamento}":     proc.get("departamento", "Huila"),
+        "{departamento}":     proc.get("departamento", "[DEPARTAMENTO NO DISPONIBLE]"),
+        "{modalidad}":        proc.get("modalidad", "[MODALIDAD NO DISPONIBLE]"),
         "{ciudad}":           proc.get("ciudad", "[MUNICIPIO NO DISPONIBLE]"),
         "{id_proceso}":       proc.get("id_proceso", "[ID NO DISPONIBLE]"),
     }
+    e = _empresa()
+    replacements.update({
+        "{empresa}": e["nombre"], "{empresa_ciudad}": e["ciudad"], "{empresa_nit}": e["nit"],
+        "{empresa_rep_legal}": e["rep_legal"], "{empresa_direccion}": e["direccion"],
+        "{empresa_telefono}": e["telefono"], "{empresa_email}": e["email"],
+    })
     for placeholder, value in replacements.items():
         template = template.replace(placeholder, str(value))
     return template
@@ -412,7 +434,8 @@ def generate_secop_document(proc: dict, client: anthropic.Anthropic, output_dir:
 
     # Portada
     doc.add_paragraph()
-    t = doc.add_paragraph("VECTOR PRO SERVICES S.A.S.")
+    empresa = _empresa()
+    t = doc.add_paragraph(empresa["nombre"])
     t.alignment = WD_ALIGN_PARAGRAPH.CENTER
     t.runs[0].bold = True
     t.runs[0].font.size = Pt(16)
@@ -434,13 +457,13 @@ def generate_secop_document(proc: dict, client: anthropic.Anthropic, output_dir:
     # Índice simple
     _add_heading(doc, "CONTENIDO DEL DOCUMENTO", 1)
     for s in SECTIONS:
-        doc.add_paragraph(s["titulo"], style="List Number")
+        doc.add_paragraph(_fill_prompt(s["titulo"], proc), style="List Number")
     doc.add_page_break()
 
     # Secciones
     for s in SECTIONS:
         log.info("Generando: %s", s["titulo"])
-        _add_heading(doc, s["titulo"], 1)
+        _add_heading(doc, _fill_prompt(s["titulo"], proc), 1)
         _add_watermark(doc)
         instruction = _fill_prompt(s["prompt"], proc)
         content     = _call_claude(context, instruction, client)
@@ -449,7 +472,7 @@ def generate_secop_document(proc: dict, client: anthropic.Anthropic, output_dir:
 
     # Pie de página informativo
     p = doc.add_paragraph(
-        f"Documento generado el {date.today()} por el Asistente SECOP 2 de VECTOR PRO SERVICES S.A.S.\n"
+        f"Documento generado el {date.today()} por el Agente SECOP2 para {empresa['nombre']}.\n"
         f"Fuente de datos: SECOP II via API Socrata (datos.gov.co) — ID proceso: {id_proceso}\n"
         f"Este borrador es una referencia de trabajo. Todos los campos [COMPLETAR] deben ser "
         f"diligenciados con información real de la empresa y la entidad antes de presentar."

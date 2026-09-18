@@ -17,16 +17,33 @@ def set_conn(conn):
 log = logging.getLogger(__name__)
 
 
+def _load_json(nombre: str) -> dict:
+    try:
+        with open(Path(__file__).parent / "config" / nombre, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        log.warning("No se pudo cargar %s: %s", nombre, e)
+        return {}
+
+
 def _load_empresa() -> dict:
     global _empresa_cache
     if _empresa_cache is None:
-        try:
-            with open(Path(__file__).parent / "config" / "empresa.json", encoding="utf-8") as f:
-                _empresa_cache = json.load(f)
-        except Exception as e:
-            log.warning("No se pudo cargar empresa.json: %s", e)
-            _empresa_cache = {}
+        _empresa_cache = _load_json("empresa.json")
     return _empresa_cache
+
+
+def _ambito() -> dict:
+    """Ámbito geográfico y modalidad, tomados de keywords.json (lo que el bot realmente vigila)."""
+    k = _load_json("keywords.json")
+    e = _load_empresa()
+    depto_filtro = (k.get("departamento_filter") or "").strip()
+    modalidad = (k.get("modalidad_filter") or "").strip() or e.get("modalidad_objetivo", "") or "cualquier modalidad"
+    return {
+        "nacional": not depto_filtro,
+        "departamento": depto_filtro or e.get("departamento", ""),
+        "modalidad": modalidad,
+    }
 
 
 def _build_system_prompt() -> list:
@@ -37,18 +54,37 @@ def _build_system_prompt() -> list:
     experiencia = "\n".join(f"- {x}" for x in e.get("experiencia_relevante", []))
     val_min = e.get("valor_minimo_interes_cop", 3000000)
     val_max = e.get("valor_maximo_capacidad_cop", 80000000)
+    a = _ambito()
+    razon = e.get("razon_social", "LA EMPRESA")
+    municipio = e.get("municipio", "")
+    depto = a["departamento"] or "su departamento"
+    if a["nacional"]:
+        criterio_entidad = f"""   - 20 pts: entidad de las listadas en ENTIDADES OBJETIVO o del mismo tipo (alcaldía, gobernación, empresa de servicios públicos, entidad del sector)
+   - 12 pts: entidad pública reconocida de cualquier parte del país
+   - 5 pts: entidad poco conocida o de difícil verificación"""
+        criterio_ubicacion = f"""   - 10 pts: {municipio} o municipios cercanos (menor costo de operación)
+   - 8 pts: {depto} u otras zonas donde la empresa ya opera (ver EXPERIENCIA)
+   - 6 pts: cualquier otro municipio de Colombia (cobertura nacional)"""
+    else:
+        criterio_entidad = f"""   - 20 pts: alcaldía, gobernación, colegio o entidad pública de {depto}
+   - 10 pts: entidad nacional con sede en {depto} (ICBF, SENA, hospital)
+   - 5 pts: entidad poco conocida"""
+        criterio_ubicacion = f"""   - 10 pts: {municipio} o municipios vecinos
+   - 7 pts: cualquier municipio de {depto}
+   - 0 pts: fuera de {depto}"""
 
     texto = f"""Eres un evaluador EXPERTO en contratación pública colombiana (SECOP 2) con 15 años de experiencia.
 Conoces a fondo: Ley 80 de 1993, Ley 1150 de 2007, Decreto 1082 de 2015, modalidades de selección, requisitos habilitantes, causales de declaración desierta, y trucos del oficio.
 
 ═══════════════════════════════════════════════════
-EMPRESA A EVALUAR: {e.get('razon_social', 'VECTOR PRO SERVICES S.A.S.')}
+EMPRESA A EVALUAR: {razon}
 ═══════════════════════════════════════════════════
 - Tipo: {e.get('tipo_empresa', 'Microempresa')}
-- Ubicación: {e.get('municipio', 'Rivera')}, {e.get('departamento', 'Huila')}
+- Ubicación: {municipio}, {e.get('departamento', '')}
+- Ámbito de búsqueda: {'todo el país' if a['nacional'] else depto}
 - Capacidad operacional máxima por contrato: ${val_max:,.0f} COP
 - Valor mínimo de interés: ${val_min:,.0f} COP
-- Modalidad objetivo: Mínima Cuantía
+- Modalidad objetivo: {a['modalidad']}
 
 CAPACIDADES REALES:
 {capacidades}
@@ -67,18 +103,13 @@ CRITERIOS DE SCORING (0-100)
 ═══════════════════════════════════════════════════
 
 1. ALINEACIÓN DEL OBJETO con capacidades reales (35 pts) — SÉ ESTRICTO
-   - 35 pts: el objeto ES exactamente lo que la empresa hace (papelería, dotación escolar, refrigerios para eventos, reforestación, mantenimiento locativo)
+   - 35 pts: el objeto ES exactamente una de las CAPACIDADES REALES listadas arriba
    - 20 pts: relacionado pero requiere esfuerzo o subcontratación menor
    - 10 pts: tangencialmente relacionado — requeriría adaptarse mucho
    - 0 pts: claramente fuera del alcance o requiere experiencia especializada que no tienen
 
    IMPORTANTE: sé conservador. Si tienes duda entre 35 y 20, pon 20. Un score inflado lleva a propuestas que pierden.
-   EJEMPLOS:
-   - "Suministro papelería institucional" → 35 pts (core business)
-   - "Suministro ferretería en general" → 15 pts (parcial, no es su fuerte)
-   - "Construcción vía terciaria" → 0 pts (obra civil mayor, no aplica)
-   - "Mantenimiento locativo institución educativa" → 30 pts (sí aplica)
-   - "Refrigerios para taller comunitario" → 35 pts (core business)
+   Compara el objeto SOLO contra las capacidades y la experiencia listadas; no asumas capacidades que no aparecen.
 
 2. VIABILIDAD ECONÓMICA (25 pts) — SÉ REALISTA
    - 25 pts: valor entre ${val_min:,.0f} y ${val_max * 0.7:,.0f} COP (rango cómodo)
@@ -87,14 +118,10 @@ CRITERIOS DE SCORING (0-100)
    - 0 pts: no se especifica valor o excede ${val_max:,.0f} COP
 
 3. ENTIDAD CONTRATANTE (20 pts)
-   - 20 pts: alcaldía, gobernación, colegio o entidad pública del Huila
-   - 10 pts: entidad nacional con sede en Huila (ICBF, SENA, hospital)
-   - 5 pts: entidad poco conocida
+{criterio_entidad}
 
 4. UBICACIÓN GEOGRÁFICA (10 pts)
-   - 10 pts: Rivera o municipios vecinos (Neiva, Campoalegre, Palermo)
-   - 7 pts: cualquier municipio del Huila
-   - 0 pts: fuera del Huila
+{criterio_ubicacion}
 
 5. ANÁLISIS COMPETITIVO + RIESGO (descuento o bonus, hasta ±10 pts)
 
@@ -108,7 +135,7 @@ CRITERIOS DE SCORING (0-100)
    - "Visualizaciones" > 100 + respuestas > 5 → -3 pts (proceso muy peleado)
    - "Proveedores invitados" = 1 y NO somos los invitados → -8 pts (proceso amañado para otro)
    - Plazo de ejecución < 7 días → -5 pts (poco tiempo para producir)
-   - Plazo de ejecución > 180 días para microempresa → -3 pts (capital de trabajo largo)
+   - Plazo de ejecución muy largo para el tamaño de la empresa ({e.get('tipo_empresa', 'empresa')}) sin capacidad financiera evidente → -3 pts
    - "Estado resumen" indica que ya cerró la oferta → -10 pts (ya no aplica)
    - Objeto demasiado vago o sin valor definido: -3 pts
 
@@ -204,7 +231,7 @@ Responde SOLO con JSON válido, sin texto adicional:
       "id_proceso": "...",
       "score": 75,
       "justificacion": "Por qué le diste ese score, mencionando lo principal: alineación, valor, entidad, y cualquier señal de riesgo detectada. Máximo 2 oraciones, claro y directo.",
-      "categoria": "suministro|eventos|social|ambiental|mantenimiento|otro"
+      "categoria": "{'|'.join(list(_load_json('keywords.json').get('categories', {}).keys()) + ['otro'])}"
     }}
   ]
 }}"""

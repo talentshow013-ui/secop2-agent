@@ -6,56 +6,102 @@
   "socrata": {
     "domain": "www.datos.gov.co",
     "dataset_id": "p6dx-8zbt",
-    "page_size": 1000
+    "page_size": 500,
+    "timeout": 120
   },
   "categories": {
     "suministro": {
       "label": "Suministro Institucional",
       "keywords": [
-        "suministro papelaría", "papelaría", "dotación institucional",
-        "dotación escolar", "mobiliario", "útiles escolares",
-        "elementos de oficina", "toner", "resmas", "archivo",
-        "material didactico", "dotacion", "suministro elementos"
+        "suministro papelaría",
+        "papelaría",
+        "dotación institucional",
+        "dotación escolar",
+        "mobiliario",
+        "útiles escolares",
+        "elementos de oficina",
+        "toner",
+        "resmas",
+        "archivo",
+        "material didactico",
+        "dotacion",
+        "suministro elementos"
       ],
       "score_hint": "Suministro de bienes fungibles para funcionamiento institucional"
     },
     "eventos": {
       "label": "Servicios Logísticos y Eventos",
       "keywords": [
-        "capacitación", "taller", "evento", "seminario",
-        "refrigerio", "logística", "formación",
-        "actividad comunitaria", "jornada", "recreacion",
-        "convivencia", "encuentro", "festival"
+        "capacitación",
+        "taller",
+        "evento",
+        "seminario",
+        "refrigerio",
+        "logística",
+        "formación",
+        "actividad comunitaria",
+        "jornada",
+        "recreacion",
+        "convivencia",
+        "encuentro",
+        "festival"
       ],
       "score_hint": "Servicios de logística, catering o formación para entidades"
     },
     "social": {
       "label": "Proyectos Sociales y Comunitarios",
       "keywords": [
-        "población vulnerable", "proyecto productivo", "rural",
-        "comunidad", "familias", "ICBF", "bienestar", "adulto mayor",
-        "discapacidad", "proyecto social", "primera infancia",
-        "niñez", "mujer", "emprendimiento"
+        "población vulnerable",
+        "proyecto productivo",
+        "rural",
+        "comunidad",
+        "familias",
+        "ICBF",
+        "bienestar",
+        "adulto mayor",
+        "discapacidad",
+        "proyecto social",
+        "primera infancia",
+        "niñez",
+        "mujer",
+        "emprendimiento"
       ],
       "score_hint": "Proyectos de intervención social con comunidades vulnerables"
     },
     "ambiental": {
       "label": "Servicios Ambientales y Agrícolas",
       "keywords": [
-        "reforestación", "zonas verdes", "insumos agropecuarios",
-        "mantenimiento zonas verdes", "arborización", "vivero",
-        "semillas", "fertilizantes", "agropecuario", "ambiental",
-        "siembra", "residuos", "saneamiento"
+        "reforestación",
+        "zonas verdes",
+        "insumos agropecuarios",
+        "mantenimiento zonas verdes",
+        "arborización",
+        "vivero",
+        "semillas",
+        "fertilizantes",
+        "agropecuario",
+        "ambiental",
+        "siembra",
+        "residuos",
+        "saneamiento"
       ],
       "score_hint": "Servicios de reforestación, mantenimiento ambiental o insumos agrícolas"
     },
     "mantenimiento": {
       "label": "Mantenimientos y Ferretera",
       "keywords": [
-        "mantenimiento locativo", "suministro ferretera", "ferretera",
-        "materiales construcción", "reparaciones locativas",
-        "pintura", "electricidad", "plomería", "obra civil menor",
-        "instalación", "adecuación", "infraestructura"
+        "mantenimiento locativo",
+        "suministro ferretera",
+        "ferretera",
+        "materiales construcción",
+        "reparaciones locativas",
+        "pintura",
+        "electricidad",
+        "plomería",
+        "obra civil menor",
+        "instalación",
+        "adecuación",
+        "infraestructura"
       ],
       "score_hint": "Mantenimiento de instalaciones o suministro de materiales de construcción"
     }
@@ -66,5 +112,7 @@
     "departamento": "Huila",
     "tipo": "Microempresa",
     "modalidad_objetivo": "Mínima Cuantía"
-  }
+  },
+  "dias_busqueda_programada": 3,
+  "dias_busqueda_manual": 7
 }
