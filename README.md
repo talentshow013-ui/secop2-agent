@@ -100,6 +100,7 @@ Doble clic en `start.bat` — activa el entorno e inicia el bot con su programad
 ### Manual (Windows o Linux)
 
 ```bash
+python main.py --check   # diagnóstico: credenciales, tokens, configuración, base de datos
 python main.py
 ```
 El bot queda escuchando en Telegram y corre las búsquedas automáticas a las 08:00, 14:00 y 20:00.

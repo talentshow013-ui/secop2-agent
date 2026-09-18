@@ -13,6 +13,24 @@ python main.py                                        # bot + scheduler 08:00 | 
 ```
 `start.bat` hace todo lo anterior en Windows. No hay panel web: la interfaz es el bot de Telegram (retirado del repo el 2026-09-17). Playwright es opcional (ver limitaciones).
 
+**Antes de arrancar en una instalación nueva:** `python main.py --check` valida credenciales, token de
+datos.gov.co, Telegram, Anthropic, configuración y base de datos, y dice en español qué falta.
+El log de arranque imprime la versión (commit) y si el código tiene modificaciones locales.
+
+### Todo lo del cliente sale de `config/`, nunca del código
+- `config/empresa.json`: razón social, ubicación, capacidades, experiencia, rangos de valor, `contacto_soporte`.
+  Lo usan el prompt del bot, el calificador de relevancia y el generador de Word.
+- `config/keywords.json`: `departamento_filter` (vacío = todo el país), `modalidad_filter` (vacío = todas),
+  categorías y palabras clave, `dias_busqueda_programada` (3), `dias_busqueda_manual` (7), `socrata.page_size`,
+  `socrata.timeout`. El calificador adapta sus criterios geográficos según haya o no departamento.
+- `.env`: `TELEGRAM_MODO=conversacional|alertas`. En `alertas` el bot solo notifica y responde texto fijo.
+Si un cliente nuevo necesita tocar un `.py` para personalizarse, es un defecto: arreglarlo en config.
+
+### PDFs de los procesos
+El usuario descarga el pliego desde SECOP y lo **reenvía al bot como archivo PDF**: `handle_document` lo lee
+(pdfplumber; si es escaneado, Claude lee el PDF), lo guarda en `proceso_contexto` y en el historial del chat,
+y desde ahí sirve para preguntas y para el Word (`generar_documento` lo reutiliza).
+
 ### Modo solo investigación (sin Telegram ni API de Anthropic)
 Si este repo se usa únicamente para consultar SECOP desde Claude Code, **no hace falta ninguna
 credencial**: los scripts de `research/` solo usan la API pública de datos.gov.co.

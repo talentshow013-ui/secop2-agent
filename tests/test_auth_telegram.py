@@ -72,3 +72,49 @@ class TestManejadorExcepcionesTelegram(unittest.TestCase):
             resultado = main.bot.exception_handler.handle(ValueError("algo raro SECRETO-ABC"))
         self.assertTrue(resultado)
         bc.assert_called_once_with("Se presentó un error. El detalle quedó en el registro del sistema.")
+
+
+class TestModoYRobustez(unittest.TestCase):
+    def setUp(self):
+        main._cargar_config()
+
+    def test_modo_alertas_responde_texto_fijo_sin_ia(self):
+        with mock.patch.object(main, "TELEGRAM_MODO", "alertas"), \
+             mock.patch.object(main, "_parse_intent") as parse, \
+             mock.patch.object(main.bot, "send_message") as send:
+            main.handle_message(_msg(chat_id=111111, text="busca procesos"))
+            parse.assert_not_called()
+            send.assert_called_once_with(111111, main.MSG_SOLO_ALERTAS)
+
+    def test_documento_de_chat_no_autorizado_se_ignora(self):
+        doc = SimpleNamespace(file_name="pliego.pdf", mime_type="application/pdf", file_size=1000, file_id="f")
+        m = SimpleNamespace(chat=SimpleNamespace(id=222222), document=doc, from_user=SimpleNamespace(id=1, username="x"))
+        with mock.patch.object(main.bot, "send_message") as send, mock.patch.object(main.bot, "get_file") as gf:
+            main.handle_document(m)
+            send.assert_not_called(); gf.assert_not_called()
+
+    def test_documento_no_pdf_se_rechaza_amablemente(self):
+        doc = SimpleNamespace(file_name="pliego.docx", mime_type="application/x", file_size=1000, file_id="f")
+        m = SimpleNamespace(chat=SimpleNamespace(id=111111), document=doc, from_user=SimpleNamespace(id=1, username="x"))
+        with mock.patch.object(main.bot, "send_message") as send, mock.patch.object(main.bot, "get_file") as gf:
+            main.handle_document(m)
+            self.assertIn("PDF", send.call_args.args[1]); gf.assert_not_called()
+
+    def test_busqueda_concurrente_se_rechaza(self):
+        with mock.patch.object(main, "_run_secop_job_locked") as job, mock.patch.object(main, "_broadcast") as bc:
+            main._job_lock.acquire()
+            try:
+                main._run_secop_job(3)
+            finally:
+                main._job_lock.release()
+            job.assert_not_called()
+            self.assertIn("en curso", bc.call_args.args[0])
+            main._run_secop_job(3)
+            job.assert_called_once_with(3)
+
+    def test_prompt_no_menciona_clientes_hardcodeados(self):
+        with mock.patch.dict(main.EMPRESA, {"razon_social": "EMPRESA X", "municipio": "Cali", "departamento": "Valle"}):
+            p = main._system_conversacional()
+        self.assertIn("EMPRESA X", p)
+        for prohibido in ("VECTOR", "Vector Pro", "Playwright", "Rivera"):
+            self.assertNotIn(prohibido, p)
