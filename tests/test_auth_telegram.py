@@ -50,3 +50,25 @@ class TestErroresNoSeDifunden(unittest.TestCase):
         bc.assert_called_once_with("Se presentó un error. El detalle quedó en el registro del sistema.")
         self.assertNotIn("SECRETO-XYZ", str(bc.call_args))
         self.assertTrue(any("SECRETO-XYZ" in l for l in logs.output))
+
+
+class TestManejadorExcepcionesTelegram(unittest.TestCase):
+    """El exception_handler de TeleBot debe exponer .handle(); si no, cada timeout de red rompe el polling."""
+
+    def test_exception_handler_tiene_handle(self):
+        main._registrar_exception_handler()
+        self.assertTrue(hasattr(main.bot.exception_handler, "handle"))
+
+    def test_timeout_de_red_no_molesta_al_usuario(self):
+        main._registrar_exception_handler()
+        with mock.patch.object(main, "_broadcast") as bc:
+            resultado = main.bot.exception_handler.handle(TimeoutError("read timed out"))
+        self.assertTrue(resultado)   # True = manejado, TeleBot no reinicia el polling
+        bc.assert_not_called()
+
+    def test_error_real_avisa_con_texto_fijo(self):
+        main._registrar_exception_handler()
+        with mock.patch.object(main, "_broadcast") as bc, self.assertLogs("main", level="ERROR"):
+            resultado = main.bot.exception_handler.handle(ValueError("algo raro SECRETO-ABC"))
+        self.assertTrue(resultado)
+        bc.assert_called_once_with("Se presentó un error. El detalle quedó en el registro del sistema.")

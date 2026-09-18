@@ -1140,14 +1140,7 @@ def main():
 
     threading.Thread(target=_scheduler_loop, daemon=True).start()
 
-    def handle_error(exc):
-        log.error("Error en el bot: %s: %s", type(exc).__name__, exc, exc_info=True)
-        try:
-            _broadcast("Se presentó un error. El detalle quedó en el registro del sistema.")
-        except Exception:
-            pass
-
-    bot.exception_handler = lambda exc: handle_error(exc)
+    _registrar_exception_handler()
 
     _broadcast(
         "Buenos días. El Asistente de Contratación SECOP 2 está en línea.\n\n"
@@ -1159,6 +1152,31 @@ def main():
 
     log.info("Bot activo — escuchando mensajes")
     bot.infinity_polling(timeout=30, long_polling_timeout=20)
+
+
+_ERRORES_DE_RED = ("ReadTimeout", "ConnectionError", "ConnectTimeout", "TimeoutError",
+                   "ReadTimeoutError", "RemoteDisconnected", "ProtocolError", "ChunkedEncodingError")
+
+
+class _BotExceptionHandler(telebot.ExceptionHandler):
+    """TeleBot exige un objeto con .handle(exc). Devolver True evita que reinicie el polling."""
+
+    def handle(self, exc):
+        nombre = type(exc).__name__
+        if nombre in _ERRORES_DE_RED:
+            # Pasajero (Telegram tardó en responder): solo un aviso, sin traceback ni mensaje al chat
+            log.warning("Red inestable con Telegram (%s); el bot sigue escuchando", nombre)
+            return True
+        log.error("Error en el bot: %s: %s", nombre, exc, exc_info=True)
+        try:
+            _broadcast("Se presentó un error. El detalle quedó en el registro del sistema.")
+        except Exception:
+            pass
+        return True
+
+
+def _registrar_exception_handler():
+    bot.exception_handler = _BotExceptionHandler()
 
 
 if __name__ == "__main__":
