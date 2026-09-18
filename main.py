@@ -50,7 +50,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("main")
 
-bot    = telebot.TeleBot(TELEGRAM_TOKEN, parse_mode=None)
+# Sin token, TeleBot lanza error al importar; se usa un marcador para que --check pueda reportarlo
+bot    = telebot.TeleBot(TELEGRAM_TOKEN or "0:sin-token", parse_mode=None)
 claude = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 conn   = None
 config = {}
